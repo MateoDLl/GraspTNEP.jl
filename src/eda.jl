@@ -83,7 +83,7 @@ function update_average_eda!(average    :: Matrix{Float64},
         average .+= p.rho .* 0.5 .* noise         # perturbación suave
     end
 
-    average .= clamp.(average, 0.0, 5.0)
+    average .= clamp.(average, 0.0, 3.0)
     average[isnan.(average)] .= 0.0
     average .= round.(average, digits=3)
 

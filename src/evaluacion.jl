@@ -40,15 +40,20 @@ function evaluate_solutions(data         :: Dict,
 
         # prefiltro adaptativo
         c_inv = cost_top(sol, data)
-        if c_inv > filter_threshold
+        if c_inv > filter_threshold || sum(sol) > data["n_lines_max"]
             solutions_dict[id_top] = Dict(1 => 10.0^39, 2 => 0.0)
             return [10.0^39, 0.0, id_top, 0]
         end
 
         # evaluación cara ACOPF
         _, cost_fo, feasible, _ = ACOPF_Extensions.run_acopf_topology(data, sol)
-        cost_fo = round(cost_fo, digits=3)
-        return [cost_fo, feasible2int(feasible), id_top, 1]
+        feass = feasible2int(feasible)
+        if feass == 0.0
+            cost_fo = round((cost_fo+1)*1000, digits=3)
+        else
+            cost_fo = round(cost_fo, digits=3)
+        end
+        return [cost_fo, feass, id_top, 1]
     end
 
     results = pmap(evaluate_single, solutions)

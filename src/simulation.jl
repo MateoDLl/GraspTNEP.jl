@@ -27,7 +27,8 @@ println("Mejor costo: ", result.best_cost)
 """
 function run_simulation(data::Dict,
                          p::GRASPParameters = default_params();
-                         verbose::Bool = true)::RunResult
+                         verbose::Bool = true,
+                         save_path :: Union{String, Nothing} = nothing)::RunResult
 
     verbose && show_params(p)
     result = grasp_evolutivo(p, deepcopy(data))
@@ -39,6 +40,12 @@ function run_simulation(data::Dict,
         println("  Tiempo      : ", round(result.elapsed_seconds, digits=1), " s")
         println("  Traza       : ", length(result.trace), " soluciones registradas")
         println("───────────────────────────────────────────")
+    end
+    if !isnothing(save_path)
+        
+        path_name = joinpath(dirname(save_path), basename(save_path)*"_$(Dates.format(now(), "yyyy-mm-dd_HHMMSS")).bson")
+        @save path_name result p
+        verbose && println("  Guardado en: $path_name")
     end
     return result
 end
@@ -123,11 +130,7 @@ function run_simulations(data      :: Dict,
 
     # ---- guardar si se pidió ----
     if !isnothing(save_path)
-        FileIO.save(save_path,
-            "sim",    sim,
-            "params", p,
-            "costs",  costs
-        )
+        @save save_path sim p costs
         verbose && println("  Guardado en: $save_path")
     end
 

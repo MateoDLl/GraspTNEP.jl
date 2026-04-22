@@ -2,7 +2,7 @@
 #  genetic.jl  —  operadores GA y fase constructiva EDA
 # ============================================================
 
-const MAX_LINES = 4
+const MAX_LINES = 3
 
 # ---- Fase constructiva EDA ----
 
@@ -12,35 +12,29 @@ const MAX_LINES = 4
 Genera exactamente `p.indv` soluciones usando EDA (Poisson por celda).
 Con probabilidad `p.alpha` construye desde cero; con `1-alpha` parte
 de una solución aleatoria del pool `best_sol_gen`.
-No se genera el ×1.5 anterior — se construyen exactamente indv soluciones.
 """
 function constructive_phase(p            :: GRASPParameters,
                              data         :: Dict,
                              average      :: Matrix{Float64},
                              best_sol_gen :: Vector{Tuple{Matrix{Int}, Float64}})::Vector{Matrix{Int}}
 
-    sz        = size(data["Inicial_Top"])
-    solutions = [zeros(Int, sz) for _ in 1:p.indv]
+    sz          = size(data["Inicial_Top"])
+    n_construct = round(Int, p.indv * p.oversample_ratio)   # genera más candidatos
+    candidates  = [zeros(Int, sz) for _ in 1:n_construct]
 
-    # heurística costo/capacidad para construcción alternativa
-    Idx_cost_cap = average .* (1.0 ./ max.(data["Mat_cost"], 1e-8))
-    s = sum(Idx_cost_cap)
-    Idx_cost_cap = s > 0 ? Idx_cost_cap ./ s : fill(1.0 / length(Idx_cost_cap), size(Idx_cost_cap))
-
-    for i in 1:p.indv
+    for i in 1:n_construct
         if rand() < p.alpha || isempty(best_sol_gen)
-            # construcción desde cero con EDA
-            solutions[i] = [min(rand(Poisson(max(average[j, k], 0.01))), MAX_LINES)
-                            for j in 1:sz[1], k in 1:sz[2]]
+            candidates[i] = [min(rand(Distributions.Poisson(average[j, k])), MAX_LINES)
+                             for j in 1:sz[1], k in 1:sz[2]]
         else
-            # partir de una solución del pool
             base = rand(best_sol_gen)[1]
-            solutions[i] = [min(base[j, k], MAX_LINES)
-                            for j in 1:sz[1], k in 1:sz[2]]
+            candidates[i] = [min(base[j, k], MAX_LINES)
+                             for j in 1:sz[1], k in 1:sz[2]]
         end
     end
 
-    return solutions
+    return candidates   # retorna todos — el ordenamiento se hace en grasp.jl
+                        # después de evaluar con ACOPF, igual que la versión original
 end
 
 # ---- Cruce (reutiliza apply_path_relinking) ----

@@ -11,8 +11,9 @@ al estancamiento, LNS e ILS como intensificación secundaria.
 Base.@kwdef struct GRASPParameters
     # --- Generales ---
     maxIter          :: Int     = 100     # máximo de iteraciones
-    indv             :: Int     = 10      # individuos por iteración (sin el ×1.5 anterior)
-
+    indv             :: Int     = 10      # individuos por iteración
+    oversample_ratio :: Float64 = 1.5    # factor de oversample en construcción
+    n_ls_top         :: Int     = 3      # cuántos hijos reciben búsqueda local ligera
     # --- EDA ---
     alpha            :: Float64 = 0.679   # prob. de construir desde cero vs best_sol_gen
     rho              :: Float64 = 0.2     # tasa de actualización del average (learning rate EDA)
@@ -22,13 +23,13 @@ Base.@kwdef struct GRASPParameters
     N_elite          :: Int     = 5       # tamaño del conjunto élite
 
     # --- GA ---
-    p_crossover      :: Float64 = 0.7     # probabilidad de aplicar cruce por individuo
-    p_mutation       :: Float64 = 0.3     # probabilidad de aplicar mutación por individuo
-    p_mut_cell       :: Float64 = 0.15    # fracción de celdas no-cero a mutar por solución
+    p_crossover      :: Float64 = 0.8     # probabilidad de aplicar cruce por individuo
+    p_mutation       :: Float64 = 0.2     # probabilidad de aplicar mutación por individuo
+    p_mut_cell       :: Float64 = 0.1    # fracción de celdas no-cero a mutar por solución
 
     # --- Prefiltro adaptativo ---
-    filter_start     :: Float64 = 2.0     # multiplicador inicial  (iter=1)
-    filter_end       :: Float64 = 1.2     # multiplicador final    (iter=maxIter)
+    filter_start     :: Float64 = 1.25     # multiplicador inicial  (iter=1)
+    filter_end       :: Float64 = 1.05     # multiplicador final    (iter=maxIter)
 
     # --- Path relinking ---
     elite_local      :: Float64 = 0.564   # prob. de usar local_sol vs élite en PR
@@ -40,7 +41,7 @@ Base.@kwdef struct GRASPParameters
     lns_destroy_frac :: Float64 = 0.3     # fracción de celdas no-cero a destruir
 
     # --- Tres niveles de estancamiento ---
-    N_Iter_No        :: Int     = 19      # umbral base (nivel 3 = reinicio)
+    N_Iter_No        :: Int     = 10      # umbral base (nivel 3 = reinicio)
     # nivel 1 = N_Iter_No * lvl1_ratio  → ILS + pesos exponenciales
     # nivel 2 = N_Iter_No * lvl2_ratio  → VNS + perturbación average
     lvl1_ratio       :: Float64 = 0.4

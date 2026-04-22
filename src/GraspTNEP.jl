@@ -31,13 +31,15 @@ mejoras = improvement_trace(result)
 module GraspTNEP
 
 using Random, Dates, Distributions, Statistics, StatsBase
-using DataFrames, FileIO
+using DataFrames
 
 # Dependencias externas del problema (no declaradas en Project.toml
 # porque son del entorno del usuario)
 using MathOptInterface
 import ACOPF_Extensions
 import Distributed: pmap
+import BSON: @save, @load
+
 
 # ---- tipos y parámetros ----
 include("types.jl")

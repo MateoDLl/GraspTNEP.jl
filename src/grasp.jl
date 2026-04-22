@@ -25,10 +25,11 @@ function grasp_evolutivo(p::GRASPParameters, data::Dict)::RunResult
 
     best_solution = data["Inicial_Top"]
     best_cost     = Inf
-    data["cost_top"] = Inf
+    data["cost_top"] = Inf 
+    data["n_lines_max"] = Inf
 
     # EDA average
-    average   = ones(sz) .* 3.0
+    average   = ones(sz) .* 0.7
     freq      = zeros(Float64, sz)   # contador de frecuencia por celda
 
     # contadores
@@ -49,20 +50,29 @@ function grasp_evolutivo(p::GRASPParameters, data::Dict)::RunResult
     for iter in 1:p.maxIter
 
         # ---- prefiltro adaptativo ----
-        filter_thr = isinf(best_cost) ? Inf :
-                     adaptive_filter(iter, p.maxIter, best_cost, p)
-
+        filter_thr = isinf(data["cost_top"]) ? Inf :
+                     adaptive_filter(iter, p.maxIter, data["cost_top"], p)
+            # DEBUG — quitar después
+        println("=== Iter $iter ===")
+        println("  filter_thr = $filter_thr")
         # ==============================================
-        # 1. FASE CONSTRUCTIVA (EDA)
+        # 1. FASE CONSTRUCTIVA (EDA) con oversample
         # ==============================================
         constructed = constructive_phase(p, data, average, best_sol_gen)
 
         solutions_dict, solutions_dict_f, c_costs, c_feas, n_ev, new_recs =
             evaluate_solutions(data, constructed, solutions_dict, solutions_dict_f,
-                               filter_thr, iter, :construction,
-                               p.trace_infeas_rate, best_cost)
+                            filter_thr, iter, :construction,
+                            p.trace_infeas_rate, best_cost)
         total_evals += n_ev
         append!(trace, new_recs)
+
+        # ordenar y quedarse con los mejores indv — igual que versión original
+        ord        = sortperm(c_costs)
+        ord        = ord[1:p.indv]
+        c_costs    = c_costs[ord]
+        c_feas     = c_feas[ord]
+        constructed = constructed[ord]
 
         # ==============================================
         # 2. OPERADORES GA (cruce + mutación)
@@ -87,6 +97,13 @@ function grasp_evolutivo(p::GRASPParameters, data::Dict)::RunResult
         all_costs = vcat(c_costs, ga_costs)
         all_feas  = vcat(c_feas, ga_feas)
 
+        # ==============================================
+        # 2b. BÚSQUEDA LOCAL LIGERA sobre top-k hijos GA
+        # ==============================================
+        solutions_dict, solutions_dict_f, offspring, ga_costs, total_evals =
+            light_local_search(offspring, ga_costs, ga_feas, data,
+                            solutions_dict, solutions_dict_f,
+                            filter_thr, iter, p, total_evals, best_cost, trace)
         # ==============================================
         # 3. LNS CONTINUO (sobre élite)
         # ==============================================
@@ -160,6 +177,7 @@ function grasp_evolutivo(p::GRASPParameters, data::Dict)::RunResult
         # ==============================================
         for (sol, cost, feas) in zip(all_sols, all_costs, all_feas)
             # actualizar élite
+            feas == 1.0 || continue
             if length(elite) < p.N_elite || cost < elite_costs[end]
                 insert_sorted!(elite, elite_costs, (sol, cost))
                 if length(elite) > p.N_elite
@@ -180,13 +198,17 @@ function grasp_evolutivo(p::GRASPParameters, data::Dict)::RunResult
         # ==============================================
         # 7. ACTUALIZAR MEJOR GLOBAL
         # ==============================================
-        iter_best_cost = isempty(all_costs) ? Inf : minimum(all_costs)
+        iter_best_cost = isempty(all_costs) ? Inf : minimum(
+            cost for (cost, f) in zip(all_costs, all_feas) if f == 1.0;
+            init = Inf
+        )
         if iter_best_cost < best_cost
             best_cost      = iter_best_cost
             best_solution  = all_sols[argmin(all_costs)]
             best_n_eval    = total_evals
             no_improve     = 0
-            data["cost_top"] = best_cost
+            data["cost_top"] = (best_solution.*data["Mat_cost"]*data["Discount"]) |> sum
+            data["n_lines_max"] = sum(best_solution) + 2
         else
             no_improve += 1
         end

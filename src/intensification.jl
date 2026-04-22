@@ -249,3 +249,92 @@ function restart_elite!(elite        :: Vector{Tuple{Matrix{Int}, Float64}},
     average[over_mask] .*= p.penalty_factor
     average .= clamp.(average, 0.0, 5.0)
 end
+
+"""
+    light_local_search(sols, costs, feas, data, solutions_dict, solutions_dict_f,
+                       filter_thr, iter, p, total_evals, best_cost, trace)
+
+Aplica un único paso first-improvement sobre los mejores k hijos factibles.
+Prueba eliminar la línea de mayor costo de inversión — si mejora, acepta.
+Máximo 1 evaluación ACOPF por individuo. No itera hasta convergencia.
+"""
+function light_local_search(sols             :: Vector{Matrix{Int}},
+                              costs            :: Vector{Float64},
+                              feas             :: Vector{Float64},
+                              data             :: Dict,
+                              solutions_dict   :: Dict,
+                              solutions_dict_f :: Dict,
+                              filter_thr       :: Float64,
+                              iter             :: Int,
+                              p                :: GRASPParameters,
+                              total_evals      :: Int,
+                              best_cost        :: Float64,
+                              trace            :: Vector{SolutionRecord})
+
+    best_sols  = deepcopy(sols)
+    best_costs = copy(costs)
+    n_ls       = min(p.n_ls_top, count(==(1.0), feas))   # solo sobre factibles top-k
+
+    # ordenar por costo para trabajar sobre los mejores primero
+    ord = sortperm(costs)
+
+    checked = 0
+    for id in ord
+        feas[id] == 1.0 || continue
+        checked >= n_ls && break
+        checked += 1
+
+        sol = sols[id]
+
+        # encontrar la celda no-cero de mayor costo de inversión
+        cost_matrix  = sol./max.(sol, 1) .* (data["Mat_cost"] * data["Discount"]')
+        nonzero_idx  = findall(>(0), sol)
+        isempty(nonzero_idx) && continue
+        best_idx     = nonzero_idx[argmax([cost_matrix[i] for i in nonzero_idx])]
+
+        # probar eliminar esa línea
+        new_sol = copy(sol)
+        new_sol[best_idx] -= 1
+
+        id_top = generate_solution_id(new_sol)
+
+        # usar cache si existe
+        if haskey(solutions_dict, id_top)
+            new_cost = solutions_dict[id_top][1]
+            new_feas = solutions_dict[id_top][2]
+        else
+            # prefiltro barato
+            c_inv = cost_top(new_sol, data)
+            if c_inv > filter_thr
+                continue
+            end
+            # evaluación ACOPF
+            _, cost_fo, feasible, _ = ACOPF_Extensions.run_acopf_topology(data, new_sol)
+            new_cost = round(cost_fo, digits=3)
+            new_feas = feasible2int(feasible)
+            if new_feas == 0.0
+                cost_fo = round((cost_fo + 1) * 1000, digits=3)
+            else
+                cost_fo = round(cost_fo, digits=3)
+            end
+            solutions_dict[id_top]   = Dict(1 => cost_fo, 2 => new_feas)
+            if new_feas == 1.0
+                solutions_dict_f[2][id_top] = solutions_dict[id_top]
+            end
+            total_evals += 1
+
+            # registrar en traza
+            improved = cost_fo < best_cost
+            push!(trace, SolutionRecord(copy(new_sol), cost_fo, new_feas == 1.0,
+                                         iter, :light_ls, improved))
+        end
+
+        # aceptar si mejora
+        if new_cost < best_costs[id]
+            best_sols[id]  = new_sol
+            best_costs[id] = new_cost
+        end
+    end
+
+    return solutions_dict, solutions_dict_f, best_sols, best_costs, total_evals
+end
