@@ -58,9 +58,15 @@ include("grasp.jl")
 # ---- API pública ----
 include("simulation.jl")
 
-export GRASPParameters, default_params, show_params
+include("GRASP_simple_parameters.jl")
+include("GRASP_simple_construccion.jl")
+include("GRASP_simple_eda.jl")
+include("GRASP_simple_evaluacion.jl")
+include("GraspSimple.jl")
+
+export GRASPParameters, default_params, show_params, GRASPSimpleParameters, params_simple
 export RunResult, SimulationResult, SolutionRecord
-export run_simulation, run_simulations
-export improvement_trace, trace_by_origin, operator_stats
+export run_simulation, run_simulations, generate_solution_id, feasible2int
+export improvement_trace, trace_by_origin, operator_stats, cost_top, grasp_simple
 
 end # module GraspTNEP
